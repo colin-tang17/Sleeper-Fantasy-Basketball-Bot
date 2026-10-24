@@ -2,50 +2,72 @@ name: Sleeper bench alerts
 
 on:
   schedule:
-    # Every 5 min during hours when NBA games tip off (UTC). GitHub may delay runs.
-    - cron: "*/5 0-4,15-23 * * *"
+    # Every 15 min, covering 11:30 AM - 11:30 PM Eastern in both EDT and EST.
+    # GitHub cron is UTC-only, so this is the union of both offsets; the
+    # first step below skips any run outside the real Eastern-time window.
+    - cron: "30,45 15 * * *"
+    - cron: "*/15 16-23 * * *"
+    - cron: "*/15 0-3 * * *"
+    - cron: "0,15,30 4 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
         description: "Print instead of posting to Discord"
-        default: "true"
+        default: "false"
       lead_minutes:
         description: "Look-ahead window in minutes"
-        default: "15"
+        default: "29"
 
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
+      # Skip scheduled runs outside 11:30 AM - 11:30 PM Eastern. Manual runs always go.
+      - name: Check Eastern time window
+        id: window
+        run: |
+          now=$(TZ=America/New_York date +%H%M)
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] || { [ "$now" -ge 1130 ] && [ "$now" -le 2330 ]; }; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Outside window (Eastern time is $now), skipping."
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.window.outputs.run == 'true'
 
       - uses: actions/setup-python@v5
+        if: steps.window.outputs.run == 'true'
         with:
           python-version: "3.12"
           cache: pip
 
       - run: pip install -r requirements.txt
+        if: steps.window.outputs.run == 'true'
 
       # Remember which alerts were already sent (avoids duplicate pings).
       - uses: actions/cache/restore@v4
+        if: steps.window.outputs.run == 'true'
         with:
           path: state
           key: state-restore
           restore-keys: state-
 
       - name: Run bot
+        if: steps.window.outputs.run == 'true'
         env:
           SLEEPER_USERNAME: ${{ secrets.SLEEPER_USERNAME }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DISCORD_USER_ID: ${{ secrets.DISCORD_USER_ID }}
-          LEAD_MINUTES: ${{ github.event.inputs.lead_minutes || '15' }}
+          LEAD_MINUTES: ${{ github.event.inputs.lead_minutes || '29' }}
           IGNORE_PLAYERS: ${{ vars.IGNORE_PLAYERS }}
           DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: python bot.py
 
       # Only save state when something was actually sent.
       - uses: actions/cache/save@v4
-        if: hashFiles('.dirty') != ''
+        if: steps.window.outputs.run == 'true' && hashFiles('.dirty') != ''
         with:
           path: state
           key: state-${{ github.run_id }}
