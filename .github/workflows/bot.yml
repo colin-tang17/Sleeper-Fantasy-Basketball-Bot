@@ -1,0 +1,51 @@
+name: Sleeper bench alerts
+
+on:
+  schedule:
+    # Every 5 min during hours when NBA games tip off (UTC). GitHub may delay runs.
+    - cron: "*/5 0-4,15-23 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print instead of posting to Discord"
+        default: "true"
+      lead_minutes:
+        description: "Look-ahead window in minutes"
+        default: "15"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # Remember which alerts were already sent (avoids duplicate pings).
+      - uses: actions/cache/restore@v4
+        with:
+          path: state
+          key: state-restore
+          restore-keys: state-
+
+      - name: Run bot
+        env:
+          SLEEPER_USERNAME: ${{ secrets.SLEEPER_USERNAME }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_USER_ID: ${{ secrets.DISCORD_USER_ID }}
+          LEAD_MINUTES: ${{ github.event.inputs.lead_minutes || '15' }}
+          IGNORE_PLAYERS: ${{ vars.IGNORE_PLAYERS }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: python bot.py
+
+      # Only save state when something was actually sent.
+      - uses: actions/cache/save@v4
+        if: hashFiles('.dirty') != ''
+        with:
+          path: state
+          key: state-${{ github.run_id }}
