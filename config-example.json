@@ -1,0 +1,8 @@
+{
+  "sleeper_username": "SLEEPERUSERNAME",
+  "discord_webhook_url": "DISC_URL",
+  "discord_user_id": "",
+  "lead_minutes": 15,
+  "ignore_players": [],
+  "dry_run": false
+}
