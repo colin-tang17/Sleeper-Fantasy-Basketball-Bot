@@ -5,10 +5,10 @@ on:
     # Every 15 min, covering 11:30 AM - 11:30 PM Eastern in both EDT and EST.
     # GitHub cron is UTC-only, so this is the union of both offsets; the
     # first step below skips any run outside the real Eastern-time window.
-    - cron: "30,45 15 * * *"
-    - cron: "*/15 16-23 * * *"
-    - cron: "*/15 0-3 * * *"
-    - cron: "0,15,30 4 * * *"
+    - cron: "36,51 15 * * *"
+    - cron: "6,21,36,51 16-23 * * *"
+    - cron: "6,21,36,51 0-3 * * *"
+    - cron: "6,21 4 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
